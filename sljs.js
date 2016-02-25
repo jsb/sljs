@@ -32,7 +32,7 @@ function Game(mapString) {
     var height = mapString.length;
 
     this.player = { x: 0, y: 0, facing: 'n' };
-    this.goal = { x: 0, y: 0 };
+    this.goals = [];
 
     this.map = new Grid(width, height);
     for (var y = 0; y < height; ++y) {
@@ -44,8 +44,7 @@ function Game(mapString) {
                 this.player.y = y;
             }
             if (token == 'G') {
-                this.goal.x = x;
-                this.goal.y = y;
+                this.goals.push({ 'x': x, 'y': y });
             }
         }
     }
@@ -80,8 +79,10 @@ Game.prototype.split = function(splitX, splitY) {
     // objects
     this.player.x = (this.player.x + w - splitX) % w;
     this.player.y = (this.player.y + h - splitY) % h;
-    this.goal.x = (this.goal.x + w - splitX) % w;
-    this.goal.y = (this.goal.y + h - splitY) % h;
+    for (var i = 0; i < this.goals.length; ++i) {
+        this.goals[i].x = (this.goals[i].x + w - splitX) % w;
+        this.goals[i].y = (this.goals[i].y + h - splitY) % h;
+    }
 }
 Game.prototype.shoot = function() {
     if (this.player.facing == 'n') {
@@ -127,23 +128,25 @@ Game.prototype.draw = function(ctx, options) {
             ctx.fillRect(tileX, tileY, options.tileSize, options.tileSize);
         }
     }
-    // Goal
-    var goalX = (this.goal.x + 0.5) * options.tileSize;
-    var goalY = (this.goal.y + 0.5) * options.tileSize;
-    var goalRadius = 0.3 * options.tileSize;
-    ctx.beginPath();
-    ctx.arc(goalX, goalY, goalRadius, 0, 2 * Math.PI);
-    ctx.fillStyle = '#ff0';
-    ctx.fill();
+    
+    // Goals
+    for (var i = 0; i < this.goals.length; ++i) {
+        var goalX = (this.goals[i].x + 0.5) * options.tileSize;
+        var goalY = (this.goals[i].y + 0.5) * options.tileSize;
+        var goalRadius = 0.3 * options.tileSize;
+        ctx.beginPath();
+        ctx.arc(goalX, goalY, goalRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ff0';
+        ctx.fill();
+    }
+    
     // Player
     ctx.save();
-
     ctx.translate((this.player.x + 0.5) * options.tileSize, (this.player.y + 0.5) * options.tileSize);
     if (this.player.facing == 'n') ctx.rotate(0.0  * 2 * Math.PI);
     if (this.player.facing == 'e') ctx.rotate(0.25 * 2 * Math.PI);
     if (this.player.facing == 's') ctx.rotate(0.5  * 2 * Math.PI);
     if (this.player.facing == 'w') ctx.rotate(0.75 * 2 * Math.PI);
-    
     ctx.beginPath();
     ctx.moveTo(0, -options.tileSize * 0.4);
     ctx.lineTo(options.tileSize * 0.4, options.tileSize * 0.4);
@@ -176,21 +179,29 @@ Game.prototype.onKeyDown = function(event) {
 
 var game = null;
 function initGame() {
+    var drawOptions = { tileSize: 32 };
     var testMap = [
-        '######  ',
-        '     #  ',
-        '  P  ###',
-        '     #  ',
-        '     # G',
-        '######  '
+        '######   ####',
+        '     #   #   ',
+        '  P  ##### G ',
+        '     #   #   ',
+        '     # G #   ',
+        '######   #   ',
+        '         #   ',
+        '         ####'
     ];
     game = new Game(testMap);
-
+    
+    var canvasWidth  = game.map.width  * drawOptions.tileSize;
+    var canvasHeight = game.map.height * drawOptions.tileSize;
+    
     var canvas = document.getElementById('canvas');
+    canvas.width  = canvasWidth;
+    canvas.height = canvasHeight;
     var ctx = canvas.getContext('2d');
 
     var render = function(event) {
-        game.draw(ctx, { tileSize: 16 });
+        game.draw(ctx, drawOptions);
     };
     var onKeyDown = function(event) {
         game.onKeyDown(event);
