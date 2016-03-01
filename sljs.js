@@ -18,12 +18,15 @@ Grid.prototype.set = function(x, y, value) {
     this.data[y * this.width + x] = value;
 }
 
+var brushDownColor = '#faa';
+var brushUpColor = '#888';
+
 function parseMapToken(token) {
     if (token == '#') {
-        return { color: '#669', solid: true };
+        return { color: '#333', solid: true };
     }
     else {
-        return { color: '#aaf', solid: false };
+        return { color: brushUpColor, solid: false };
     }
 }
 
@@ -53,7 +56,7 @@ Game.prototype.tryMove = function(direction) {
     if (this.player.facing != direction) {
         this.player.facing = direction;
     }
-    else {
+    if (true) {
         var newX = this.player.x;
         var newY = this.player.y;
         if (this.player.facing == 'w') { newX -= 1; }
@@ -61,6 +64,27 @@ Game.prototype.tryMove = function(direction) {
         if (this.player.facing == 'n') { newY -= 1; }
         if (this.player.facing == 's') { newY += 1; }
         if (!this.map.get(newX, newY).solid) {
+            // brush current tile
+            var currentTile = this.map.get(this.player.x, this.player.y);
+            if (this.player.facing == 's') {
+                currentTile.color = brushDownColor;
+            }
+            if (this.player.facing == 'n') {
+                currentTile.color = brushUpColor;
+            }
+            this.map.set(this.player.x, this.player.y, currentTile);
+            
+            // brush next tile
+            var nextTile = this.map.get(newX, newY);
+            if (this.player.facing == 's') {
+                nextTile.color = brushDownColor;
+            }
+            if (this.player.facing == 'n') {
+                nextTile.color = brushUpColor;
+            }
+            this.map.set(newX, newY, nextTile);
+            
+            // move player to new pos
             this.player.x = newX;
             this.player.y = newY;
         }
@@ -172,7 +196,7 @@ Game.prototype.onKeyDown = function(event) {
             this.tryMove('s');
             break;
         case 32:
-            this.shoot();
+            //this.shoot();
             break;
     }
 };
@@ -182,11 +206,11 @@ function initGame() {
     var drawOptions = { tileSize: 32 };
     var testMap = [
         '######   ####',
-        '     #   #   ',
-        '  P  ##### G ',
-        '     #   #   ',
-        '     # G #   ',
-        '######   #   ',
+        '         #   ',
+        '  P  ## ## G ',
+        '  #  #       ',
+        '  #  # G     ',
+        '######       ',
         '         #   ',
         '         ####'
     ];
