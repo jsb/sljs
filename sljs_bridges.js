@@ -77,7 +77,8 @@ function Game(mapString) {
         x: 0,
         y: 0,
         facing: 'n',
-        bridges: 0
+        bridges: 0,
+        maxBridges: 1
     };
     this.items = [];
 
@@ -170,12 +171,14 @@ Game.prototype.tryBuildBridge = function() {
     }
 }
 Game.prototype.tryCollapseBridge = function() {
-    var currentTile = this.map.get(this.player.x, this.player.y);
-    var streak = this.findTileStreak();
+    if (this.player.bridges < this.player.maxBridges) {
+        var currentTile = this.map.get(this.player.x, this.player.y);
+        var streak = this.findTileStreak();
 
-    if (isBridgeTile(streak.streakTile) && streak.endTile.walkable) {
-        this.player.bridges += 1;
-        this.replaceTiles(streak.positions, waterTile);
+        if (isBridgeTile(streak.streakTile) && streak.endTile.walkable) {
+            this.player.bridges += 1;
+            this.replaceTiles(streak.positions, waterTile);
+        }
     }
 }
 Game.prototype.tryToggleBridge = function() {
@@ -243,6 +246,10 @@ Game.prototype.draw = function(ctx, options) {
     ctx.fillStyle = '#0f0';
     ctx.fill();
     ctx.restore();
+
+    // Inventory
+    document.getElementById('inventoryBridges').innerHTML = this.player.bridges;
+    document.getElementById('inventoryMaxBridges').innerHTML = this.player.maxBridges;
 };
 Game.prototype.onKeyDown = function(event) {
     var code = event.keyCode;
