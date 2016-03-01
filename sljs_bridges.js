@@ -1,10 +1,23 @@
 'use strict';
 
-var waterTile   = { type: 'water',   color: '#08a', walkable: false };
-var landTile    = { type: 'land',    color: '#3a0', walkable: true  };
-var cliffTile   = { type: 'cliff',   color: '#888', walkable: false };
-var bridgeTile  = { type: 'bridge',  color: '#860', walkable: true  };
-var nothingTile = { type: 'nothing', color: '#000', walkable: false };
+var waterTile    = { type: 'water',    color: '#08a', walkable: false };
+var landTile     = { type: 'land',     color: '#3a0', walkable: true  };
+var cliffTile    = { type: 'cliff',    color: '#888', walkable: false };
+var bridgeHTile  = { type: 'bridgeH',  color: '#860', walkable: true  };
+var bridgeVTile  = { type: 'bridgeV',  color: '#860', walkable: true  };
+var nothingTile  = { type: 'nothing',  color: '#000', walkable: false };
+
+function isBridgeTile(tile) {
+    return tile.type == 'bridgeH' || tile.type == 'bridgeV';
+}
+
+function bridgeTileForFacing(facing) {
+    if (facing == 'n') return bridgeVTile;
+    if (facing == 's') return bridgeVTile;
+    if (facing == 'e') return bridgeHTile;
+    if (facing == 'w') return bridgeHTile;
+    return nothingTile;
+}
 
 function Grid(width, height) {
     this.width = width;
@@ -27,8 +40,11 @@ function parseMapToken(token) {
     if (token == '#') {
         return waterTile;
     }
-    else if (token == '=') {
-        return bridgeTile;
+    else if (token == '-') {
+        return bridgeHTile;
+    }
+    else if (token == '|') {
+        return bridgeVTile;
     }
     else if (token == '*') {
         return cliffTile;
@@ -115,68 +131,51 @@ Game.prototype.tryMove = function(direction) {
         }
     }
 }
-Game.prototype.split = function(splitX, splitY) {
-    var w = this.map.width;
-    var h = this.map.height;
-    var newMap = new Grid(w, h);
-    for (var y = 0; y < h; ++y) {
-        for (var x = 0; x < w; ++x) {
-            newMap.set(x, y, this.map.get((x + splitX) % w, (y + splitY) % h));
-        }
+Game.prototype.findTileStreak = function() {
+    var d = facingToOffset(this.player.facing);
+    var streakPositions = [];
+    var currentX = this.player.x + d.x;
+    var currentY = this.player.y + d.y;
+    var streakTile = this.map.get(currentX, currentY);
+    var currentTile = streakTile;
+    while(currentTile.type == streakTile.type) {
+        streakPositions.push({ x: currentX, y: currentY });
+        currentX += d.x;
+        currentY += d.y;
+        currentTile = this.map.get(currentX, currentY);
     }
-    this.map = newMap;
-    // objects
-    this.player.x = (this.player.x + w - splitX) % w;
-    this.player.y = (this.player.y + h - splitY) % h;
-    for (var i = 0; i < this.items.length; ++i) {
-        this.items[i].x = (this.items[i].x + w - splitX) % w;
-        this.items[i].y = (this.items[i].y + h - splitY) % h;
+    var endTile = currentTile;
+    return {
+        'positions': streakPositions,
+        'streakTile': streakTile,
+        'endTile': endTile
+    };
+}
+Game.prototype.replaceTiles = function(tilePositions, tileType) {
+    for (var i = 0; i < tilePositions.length; ++i) {
+        var tilePos = tilePositions[i];
+        this.map.set(tilePos.x, tilePos.y, tileType);
     }
 }
 Game.prototype.tryBuildBridge = function() {
     if (this.player.bridges > 0) {
-        var d = facingToOffset(this.player.facing);
-        // trace out bridge until we hit something
-        var bridgePositions = [];
-        var currentX = this.player.x + d.x;
-        var currentY = this.player.y + d.y;
-        var currentTile = this.map.get(currentX, currentY);
-        while(currentTile.type == 'water') {
-            bridgePositions.push({ x: currentX, y: currentY });
-            currentX += d.x;
-            currentY += d.y;
-            var currentTile = this.map.get(currentX, currentY);
-        }
-        if (currentTile.type == 'land') {
-            // bridge connects! build it
+        var currentTile = this.map.get(this.player.x, this.player.y);
+        var streak = this.findTileStreak();
+
+        if (streak.streakTile.type == 'water' && streak.endTile.walkable) {
             this.player.bridges -= 1;
-            for (var i = 0; i < bridgePositions.length; ++i) {
-                var pos = bridgePositions[i];
-                this.map.set(pos.x, pos.y, bridgeTile);
-            }
+            var orientedBridgeTile = bridgeTileForFacing(this.player.facing);
+            this.replaceTiles(streak.positions, orientedBridgeTile);
         }
     }
 }
 Game.prototype.tryCollapseBridge = function() {
-    var d = facingToOffset(this.player.facing);
-    // trace out bridge until we hit something
-    var bridgePositions = [];
-    var currentX = this.player.x + d.x;
-    var currentY = this.player.y + d.y;
-    var currentTile = this.map.get(currentX, currentY);
-    while(currentTile.type == 'bridge') {
-        bridgePositions.push({ x: currentX, y: currentY });
-        currentX += d.x;
-        currentY += d.y;
-        var currentTile = this.map.get(currentX, currentY);
-    }
-    if (currentTile.type == 'land') {
-        // bridge connects! destroy it
+    var currentTile = this.map.get(this.player.x, this.player.y);
+    var streak = this.findTileStreak();
+
+    if (isBridgeTile(streak.streakTile) && streak.endTile.walkable) {
         this.player.bridges += 1;
-        for (var i = 0; i < bridgePositions.length; ++i) {
-            var pos = bridgePositions[i];
-            this.map.set(pos.x, pos.y, waterTile);
-        }
+        this.replaceTiles(streak.positions, waterTile);
     }
 }
 Game.prototype.tryToggleBridge = function() {
@@ -186,10 +185,10 @@ Game.prototype.tryToggleBridge = function() {
     var playerTile = this.map.get(this.player.x, this.player.y);
     var targetTile = this.map.get(targetX, targetY);
     
-    if (playerTile.type == 'land' && targetTile.type == 'water') {
+    if (targetTile.type == 'water') {
         this.tryBuildBridge();
     }
-    else if (playerTile.type == 'land' && targetTile.type == 'bridge') {
+    else if (isBridgeTile(targetTile)) {
         this.tryCollapseBridge();
     }
 }
@@ -201,6 +200,17 @@ Game.prototype.draw = function(ctx, options) {
             var tileY = y * options.tileSize;
             ctx.fillStyle = this.map.get(x, y).color;
             ctx.fillRect(tileX, tileY, options.tileSize, options.tileSize);
+
+            // special bridge rendering. TODO: use tile bitmaps
+            var margin = options.tileSize * 0.15;
+            if (this.map.get(x, y).type == 'bridgeH') {
+                ctx.fillStyle = 'rgba(255,255,255, 0.1)';
+                ctx.fillRect(tileX, tileY + margin, options.tileSize, options.tileSize - 2 * margin);                
+            }
+            if (this.map.get(x, y).type == 'bridgeV') {
+                ctx.fillStyle = 'rgba(255,255,255, 0.1)';
+                ctx.fillRect(tileX + margin, tileY, options.tileSize - 2 * margin, options.tileSize);                
+            }
         }
     }
     
@@ -261,12 +271,13 @@ function initGame() {
     var testMap = [
         '#############',
         '#   #####   #',
-        '# P =====   #',
+        '# P -----   #',
         '#   #####   #',
         '#############',
+        '###### ######',
         '#############',
         '#   #####   #',
-        '#   #####   #',
+        '#   -----   #',
         '#   #####   #',
         '#############'
     ];
